@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShortageImpact-BOMTracer | Pelico Solution Engineering</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --red: #ef4444;
+            --red-glow: rgba(239, 68, 68, 0.3);
+            --orange: #f97316;
+            --amber: #f59e0b;
+            --green: #22c55e;
+            --cyan: #06b6d4;
+            --blue: #3b82f6;
+            --purple: #a855f7;
+            --pelico-grad: linear-gradient(135deg, #ef4444 0%, #f97316 40%, #f59e0b 100%);
+            --safe-grad: linear-gradient(135deg, #22c55e 0%, #06b6d4 100%);
+            --bg: #05080f;
+            --bg-card: #0a1120;
+            --bg-el: #111b2e;
+            --bg-hover: #182340;
+            --text: #f1f5f9;
+            --text2: #94a3b8;
+            --text3: #475569;
+            --border: #1e293b;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            background-image:
+                radial-gradient(ellipse at 20% 80%, rgba(239,68,68,0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(249,115,22,0.07) 0%, transparent 50%);
+        }
+
+        .header {
+            background: rgba(5,8,15,0.88);
+            border-bottom: 1px solid var(--border);
+            padding: 0.6rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            backdrop-filter: blur(24px);
+        }
+
+        .header-inner {
+            max-width: 1800px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo { display: flex; align-items: center; gap: 0.75rem; }
+
+        .logo-icon {
+            width: 42px; height: 42px;
+            background: var(--pelico-grad);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.2rem;
+            box-shadow: 0 0 20px var(--red-glow);
+        }
+
+        .logo-text {
+            font-size: 1.35rem; font-weight: 800;
+            background: var(--pelico-grad);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .logo-sub {
+            font-size: 0.56rem; color: var(--text3);
+            text-transform: uppercase; letter-spacing: 3px;
+        }
+
+        .badges { display: flex; gap: 0.4rem; }
+
+        .badge {
+            background: var(--bg-card); border: 1px solid var(--border);
+            padding: 0.3rem 0.6rem; border-radius: 6px;
+            font-size: 0.62rem; color: var(--text2);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .badge.alert {
+            background: rgba(239,68,68,0.12);
+            border-color: var(--red); color: var(--red);
+            animation: alertFlash 2s ease-in-out infinite;
+        }
+
+        @keyframes alertFlash {
+            0%,100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .main { max-width: 1800px; margin: 0 auto; padding: 1.5rem 2rem; }
+
+        .hero { text-align: center; margin-bottom: 1.5rem; }
+
+        .hero h1 {
+            font-size: 2.2rem; font-weight: 900;
+            background: var(--pelico-grad);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero p { color: var(--text2); font-size: 0.95rem; }
+
+        .workspace {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            gap: 1.25rem;
+        }
+
+        @media (max-width: 1300px) { .workspace { grid-template-columns: 1fr; } }
+
+        .card {
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 14px; overflow: hidden;
+        }
+
+        .card-hd {
+            padding: 0.85rem 1.15rem; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            background: linear-gradient(180deg, rgba(17,27,46,0.7) 0%, transparent 100%);
+        }
+
+        .card-t { font-size: 0.85rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+        .card-bd { padding: 1.15rem; }
+
+        /* BOM Tree */
+        .bom-canvas {
+            background: var(--bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            min-height: 420px;
+            position: relative;
+            overflow: auto;
+        }
+
+        .bom-tree {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .bom-level {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            padding-left: 0;
+        }
+
+        .bom-level[data-depth="1"] { padding-left: 2.5rem; }
+        .bom-level[data-depth="2"] { padding-left: 5rem; }
+        .bom-level[data-depth="3"] { padding-left: 7.5rem; }
+
+        .bom-connector {
+            width: 20px; height: 1px;
+            background: var(--border);
+            flex-shrink: 0;
+        }
+
+        .bom-node {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.6rem 0.9rem;
+            background: var(--bg-el);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.4s;
+            flex: 1;
+            max-width: 500px;
+            position: relative;
+        }
+
+        .bom-node:hover {
+            border-color: var(--cyan);
+            transform: translateX(4px);
+        }
+
+        .bom-node.root {
+            background: rgba(59,130,246,0.1);
+            border-color: var(--blue);
+        }
+
+        .bom-node.impacted {
+            border-color: var(--red);
+            background: rgba(239,68,68,0.08);
+            box-shadow: 0 0 20px rgba(239,68,68,0.15);
+            animation: impactPulse 0.5s ease;
+        }
+
+        .bom-node.delayed {
+            border-color: var(--orange);
+            background: rgba(249,115,22,0.08);
+        }
+
+        .bom-node.at-risk {
+            border-color: var(--amber);
+            background: rgba(245,158,11,0.08);
+        }
+
+        .bom-node.safe {
+            border-color: var(--green);
+            background: rgba(34,197,94,0.06);
+        }
+
+        .bom-node.source-fault {
+            border-color: var(--red);
+            background: rgba(239,68,68,0.15);
+            box-shadow: 0 0 30px rgba(239,68,68,0.3);
+        }
+
+        @keyframes impactPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        .bom-icon {
+            width: 32px; height: 32px;
+            border-radius: 6px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .bom-icon.assembly { background: rgba(59,130,246,0.2); }
+        .bom-icon.subassy { background: rgba(168,85,247,0.2); }
+        .bom-icon.part { background: rgba(6,182,212,0.2); }
+        .bom-icon.raw { background: rgba(34,197,94,0.2); }
+
+        .bom-info { flex: 1; min-width: 0; }
+
+        .bom-name {
+            font-size: 0.78rem; font-weight: 700;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+
+        .bom-meta {
+            font-size: 0.6rem; color: var(--text3);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .bom-tag {
+            display: inline-block;
+            padding: 0.12rem 0.4rem;
+            border-radius: 4px;
+            font-size: 0.58rem;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 600;
+        }
+
+        .bom-tag.red { background: rgba(239,68,68,0.2); color: var(--red); }
+        .bom-tag.orange { background: rgba(249,115,22,0.2); color: var(--orange); }
+        .bom-tag.amber { background: rgba(245,158,11,0.2); color: var(--amber); }
+        .bom-tag.green { background: rgba(34,197,94,0.2); color: var(--green); }
+        .bom-tag.blue { background: rgba(59,130,246,0.2); color: var(--blue); }
+
+        /* Controls */
+        .ctrls { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+
+        .btn {
+            flex: 1; padding: 0.7rem;
+            background: var(--bg-el); border: 1px solid var(--border);
+            border-radius: 8px; color: var(--text);
+            font-family: 'Outfit', sans-serif; font-size: 0.78rem; font-weight: 600;
+            cursor: pointer; transition: all 0.3s;
+            display: flex; align-items: center; justify-content: center; gap: 0.4rem;
+        }
+
+        .btn:hover { border-color: var(--cyan); background: rgba(6,182,212,0.08); }
+        .btn.danger { border-color: var(--red); background: rgba(239,68,68,0.1); }
+        .btn.danger:hover { background: rgba(239,68,68,0.2); }
+
+        /* Part Selector */
+        .part-selector {
+            background: var(--bg-el); border-radius: 10px; padding: 1rem; margin-bottom: 1rem;
+        }
+
+        .ps-title { font-size: 0.75rem; font-weight: 600; margin-bottom: 0.6rem; color: var(--text2); }
+
+        .ps-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.4rem; }
+
+        .ps-item {
+            padding: 0.55rem 0.7rem;
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 8px; cursor: pointer;
+            transition: all 0.3s; font-size: 0.72rem;
+            display: flex; align-items: center; gap: 0.4rem;
+        }
+
+        .ps-item:hover { border-color: var(--red); }
+        .ps-item.selected { border-color: var(--red); background: rgba(239,68,68,0.1); }
+        .ps-item .ps-icon { font-size: 0.9rem; }
+        .ps-item .ps-name { font-weight: 600; font-size: 0.7rem; }
+        .ps-item .ps-pn { font-size: 0.58rem; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+
+        /* Sidebar */
+        .sidebar { display: flex; flex-direction: column; gap: 1rem; }
+
+        /* Impact Summary */
+        .impact-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.5rem;
+        }
+
+        .impact-stat {
+            background: var(--bg); border-radius: 8px; padding: 0.75rem; text-align: center;
+        }
+
+        .impact-val {
+            font-size: 1.3rem; font-weight: 800;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .impact-val.red { color: var(--red); }
+        .impact-val.orange { color: var(--orange); }
+        .impact-val.amber { color: var(--amber); }
+        .impact-val.green { color: var(--green); }
+
+        .impact-lbl {
+            font-size: 0.6rem; color: var(--text3);
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+
+        /* Cascade Events */
+        .cascade-list { max-height: 260px; overflow-y: auto; }
+
+        .cascade-item {
+            display: flex; gap: 0.6rem; padding: 0.6rem;
+            background: var(--bg-el); border-radius: 8px;
+            margin-bottom: 0.4rem;
+            border-left: 3px solid var(--border);
+            animation: cascadeIn 0.3s ease;
+        }
+
+        .cascade-item.critical { border-left-color: var(--red); }
+        .cascade-item.high { border-left-color: var(--orange); }
+        .cascade-item.medium { border-left-color: var(--amber); }
+        .cascade-item.low { border-left-color: var(--green); }
+
+        @keyframes cascadeIn {
+            from { opacity: 0; transform: translateY(-6px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .cas-icon {
+            width: 26px; height: 26px;
+            border-radius: 6px; display: flex;
+            align-items: center; justify-content: center;
+            font-size: 0.8rem; flex-shrink: 0;
+            background: rgba(239,68,68,0.15);
+        }
+
+        .cascade-item.high .cas-icon { background: rgba(249,115,22,0.15); }
+        .cascade-item.medium .cas-icon { background: rgba(245,158,11,0.15); }
+        .cascade-item.low .cas-icon { background: rgba(34,197,94,0.15); }
+
+        .cas-text { font-size: 0.72rem; font-weight: 500; line-height: 1.35; }
+        .cas-meta { font-size: 0.58rem; color: var(--text3); font-family: 'JetBrains Mono', monospace; margin-top: 0.1rem; }
+
+        /* Delivery Timeline */
+        .delivery-items { margin-top: 0.5rem; }
+
+        .del-item {
+            display: flex; align-items: center; gap: 0.6rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid rgba(30,41,59,0.4);
+        }
+
+        .del-indicator {
+            width: 10px; height: 10px; border-radius: 50%;
+        }
+
+        .del-indicator.on-time { background: var(--green); }
+        .del-indicator.delayed { background: var(--red); box-shadow: 0 0 8px var(--red-glow); }
+        .del-indicator.at-risk { background: var(--amber); }
+
+        .del-info { flex: 1; }
+        .del-name { font-size: 0.72rem; font-weight: 600; }
+        .del-date { font-size: 0.6rem; color: var(--text3); font-family: 'JetBrains Mono', monospace; }
+
+        .del-shift {
+            font-size: 0.7rem; font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .del-shift.red { color: var(--red); }
+        .del-shift.green { color: var(--green); }
+        .del-shift.amber { color: var(--amber); }
+
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 1.5rem; right: 1.5rem;
+            background: var(--bg-card); border: 1px solid var(--border);
+            border-radius: 10px; padding: 0.8rem 1.15rem;
+            display: flex; align-items: center; gap: 0.6rem;
+            box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+            transform: translateY(80px); opacity: 0;
+            transition: all 0.4s cubic-bezier(0.4,0,0.2,1);
+            z-index: 1000;
+        }
+
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .t-icon { font-size: 1.2rem; }
+        .t-title { font-size: 0.8rem; font-weight: 600; }
+        .t-msg { font-size: 0.65rem; color: var(--text3); }
+
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-inner">
+            <div class="logo">
+                <div class="logo-icon">🔍</div>
+                <div>
+                    <div class="logo-text">ShortageImpact-BOMTracer</div>
+                    <div class="logo-sub">Pelico Solution Engineering Demo</div>
+                </div>
+            </div>
+            <div class="badges">
+                <span class="badge" id="alertBadge">No Active Shortage</span>
+                <span class="badge">Multi-Level BOM</span>
+                <span class="badge">Cascade Analysis</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        <div class="hero">
+            <h1>🔍 BOM Shortage Cascade Tracer</h1>
+            <p>Simulate a part delay and trace its ripple effect across work orders, assemblies & delivery commitments</p>
+        </div>
+
+        <div class="workspace">
+            <div class="left">
+                <div class="card">
+                    <div class="card-hd">
+                        <h3 class="card-t">🏭 Multi-Level BOM Explorer</h3>
+                        <span style="font-size:0.65rem;color:var(--text3);font-family:'JetBrains Mono',monospace" id="bomInfo">Aerospace Turbine Assembly • 4 levels</span>
+                    </div>
+                    <div class="card-bd">
+                        <div class="part-selector">
+                            <div class="ps-title">💥 Select Part to Delay</div>
+                            <div class="ps-grid">
+                                <div class="ps-item selected" id="ps-bearing" onclick="selectPart('bearing')">
+                                    <div class="ps-icon">⚙️</div>
+                                    <div><div class="ps-name">Shaft Bearing</div><div class="ps-pn">PN-4821-B</div></div>
+                                </div>
+                                <div class="ps-item" id="ps-blade" onclick="selectPart('blade')">
+                                    <div class="ps-icon">🔧</div>
+                                    <div><div class="ps-name">Turbine Blade</div><div class="ps-pn">PN-7733-A</div></div>
+                                </div>
+                                <div class="ps-item" id="ps-seal" onclick="selectPart('seal')">
+                                    <div class="ps-icon">🔩</div>
+                                    <div><div class="ps-name">O-Ring Seal</div><div class="ps-pn">PN-1102-C</div></div>
+                                </div>
+                                <div class="ps-item" id="ps-alloy" onclick="selectPart('alloy')">
+                                    <div class="ps-icon">🧱</div>
+                                    <div><div class="ps-name">Nickel Alloy</div><div class="ps-pn">MAT-NI718</div></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="ctrls">
+                            <button class="btn danger" onclick="simulateShortage()">
+                                💥 Simulate Shortage
+                            </button>
+                            <button class="btn" onclick="traceImpact()">
+                                🔗 Trace Impact
+                            </button>
+                            <button class="btn" onclick="resetBOM()">
+                                🔄 Reset
+                            </button>
+                        </div>
+
+                        <div class="bom-canvas" id="bomCanvas">
+                            <!-- BOM tree rendered by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar">
+                <div class="card">
+                    <div class="card-hd">
+                        <h3 class="card-t">📊 Impact Summary</h3>
+                    </div>
+                    <div class="card-bd">
+                        <div class="impact-grid">
+                            <div class="impact-stat">
+                                <div class="impact-val red" id="imp-parts">—</div>
+                                <div class="impact-lbl">Parts Impacted</div>
+                            </div>
+                            <div class="impact-stat">
+                                <div class="impact-val orange" id="imp-wo">—</div>
+                                <div class="impact-lbl">Work Orders</div>
+                            </div>
+                            <div class="impact-stat">
+                                <div class="impact-val amber" id="imp-delay">—</div>
+                                <div class="impact-lbl">Max Delay (days)</div>
+                            </div>
+                            <div class="impact-stat">
+                                <div class="impact-val green" id="imp-cost">—</div>
+                                <div class="impact-lbl">Est. Cost Impact</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-hd">
+                        <h3 class="card-t">⚡ Cascade Events</h3>
+                        <span style="font-size:0.6rem;color:var(--text3)" id="casCount">0 events</span>
+                    </div>
+                    <div class="card-bd">
+                        <div class="cascade-list" id="cascadeList">
+                            <div style="color:var(--text3);font-size:0.78rem;text-align:center;padding:1.2rem;">
+                                Simulate a shortage to see cascade
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-hd">
+                        <h3 class="card-t">📅 Delivery Impact</h3>
+                    </div>
+                    <div class="card-bd">
+                        <div class="delivery-items" id="deliveryItems">
+                            <div class="del-item">
+                                <div class="del-indicator on-time"></div>
+                                <div class="del-info"><div class="del-name">Airbus A320neo Engine</div><div class="del-date">2026-05-15</div></div>
+                                <div class="del-shift green" id="del-1">On Time</div>
+                            </div>
+                            <div class="del-item">
+                                <div class="del-indicator on-time" id="del-2-dot"></div>
+                                <div class="del-info"><div class="del-name">Safran LEAP-1A</div><div class="del-date">2026-06-01</div></div>
+                                <div class="del-shift green" id="del-2">On Time</div>
+                            </div>
+                            <div class="del-item">
+                                <div class="del-indicator on-time" id="del-3-dot"></div>
+                                <div class="del-info"><div class="del-name">Eaton Hydraulic Unit</div><div class="del-date">2026-04-28</div></div>
+                                <div class="del-shift green" id="del-3">On Time</div>
+                            </div>
+                            <div class="del-item">
+                                <div class="del-indicator on-time" id="del-4-dot"></div>
+                                <div class="del-info"><div class="del-name">Daikin Compressor Assy</div><div class="del-date">2026-05-22</div></div>
+                                <div class="del-shift green" id="del-4">On Time</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="toast" id="toast">
+        <span class="t-icon" id="tIcon">🔍</span>
+        <div>
+            <div class="t-title" id="tTitle">Trace</div>
+            <div class="t-msg" id="tMsg">Impact calculated</div>
+        </div>
+    </div>
+
+    <script>
+        let selectedPart = 'bearing';
+        let shortageActive = false;
+        let cascadeEntries = [];
+
+        const bomData = [
+            { id: 'assy-top', name: 'Turbine Engine Assembly', pn: 'ASSY-T900', depth: 0, type: 'assembly', icon: '🏭', children: true },
+            { id: 'sub-hpc', name: 'High Pressure Compressor', pn: 'SUB-HPC-01', depth: 1, type: 'subassy', icon: '🔧', children: true },
+            { id: 'blade', name: 'Turbine Blade Set (x24)', pn: 'PN-7733-A', depth: 2, type: 'part', icon: '🔧', part: 'blade' },
+            { id: 'alloy', name: 'Nickel Alloy IN718 Stock', pn: 'MAT-NI718', depth: 3, type: 'raw', icon: '🧱', part: 'alloy' },
+            { id: 'sub-shaft', name: 'Main Shaft Assembly', pn: 'SUB-SFT-02', depth: 1, type: 'subassy', icon: '⚙️', children: true },
+            { id: 'bearing', name: 'Shaft Bearing (Ceramic)', pn: 'PN-4821-B', depth: 2, type: 'part', icon: '⚙️', part: 'bearing' },
+            { id: 'sub-seal', name: 'Seal & Gasket Assembly', pn: 'SUB-SEL-03', depth: 1, type: 'subassy', icon: '🔩', children: true },
+            { id: 'seal', name: 'O-Ring Seal (Fluorocarbon)', pn: 'PN-1102-C', depth: 2, type: 'part', icon: '🔩', part: 'seal' },
+            { id: 'sub-ctrl', name: 'Control Unit (FADEC)', pn: 'SUB-CTL-04', depth: 1, type: 'subassy', icon: '💻', children: true },
+            { id: 'pcb', name: 'Main Controller PCB', pn: 'PN-9901-D', depth: 2, type: 'part', icon: '💻' },
+        ];
+
+        const impactMap = {
+            bearing: {
+                affected: ['sub-shaft', 'assy-top'],
+                atRisk: ['sub-hpc'],
+                parts: 5, wo: 3, delay: 14, cost: '€280K',
+                cascade: [
+                    { text: 'Shaft Bearing PN-4821-B delayed 14 days from supplier', sev: 'critical', meta: 'WO-4821 • Supplier: SKF Aerospace' },
+                    { text: 'Main Shaft Assembly blocked — waiting on bearing', sev: 'critical', meta: 'WO-SFT-02 • Plant: Toulouse' },
+                    { text: 'Turbine Engine final assembly pushed +14d', sev: 'high', meta: 'WO-T900 • Line: A320neo' },
+                    { text: 'HPC sub-assembly at risk — shared test bench', sev: 'medium', meta: 'WO-HPC-01 • Capacity conflict' },
+                    { text: 'Customer delivery Airbus A320neo shifted to May 29', sev: 'high', meta: 'SO-A320-2026-05 • SLA breach risk' },
+                ],
+                deliveries: ['+14d', '+14d', 'On Time', 'On Time']
+            },
+            blade: {
+                affected: ['sub-hpc', 'alloy', 'assy-top'],
+                atRisk: ['sub-shaft'],
+                parts: 7, wo: 4, delay: 21, cost: '€520K',
+                cascade: [
+                    { text: 'Turbine Blade Set machining delayed — tooling failure', sev: 'critical', meta: 'WO-7733 • Plant: Villaroche' },
+                    { text: 'Nickel Alloy stock holding increased — buffer consumed', sev: 'high', meta: 'MAT-NI718 • Inventory +45 units' },
+                    { text: 'HPC sub-assembly blocked — blade set not available', sev: 'critical', meta: 'WO-HPC-01 • Critical path' },
+                    { text: 'Final assembly schedule conflict with Shaft line', sev: 'medium', meta: 'WO-T900 • Resource contention' },
+                    { text: 'Two customer deliveries at risk of SLA breach', sev: 'high', meta: 'SO-A320 + SO-LEAP • Revenue risk' },
+                ],
+                deliveries: ['+21d', '+21d', 'On Time', '+7d']
+            },
+            seal: {
+                affected: ['sub-seal', 'assy-top'],
+                atRisk: [],
+                parts: 3, wo: 2, delay: 7, cost: '€85K',
+                cascade: [
+                    { text: 'O-Ring Seal batch failed quality inspection', sev: 'critical', meta: 'PN-1102-C • Batch: QC-FAIL-0412' },
+                    { text: 'Seal Assembly rework required — 7 day delay', sev: 'high', meta: 'WO-SEL-03 • Rework order issued' },
+                    { text: 'Final assembly minor delay — seal on semi-critical path', sev: 'medium', meta: 'WO-T900 • 3d buffer remaining' },
+                ],
+                deliveries: ['On Time', '+7d', 'On Time', 'On Time']
+            },
+            alloy: {
+                affected: ['alloy', 'blade', 'sub-hpc', 'assy-top'],
+                atRisk: ['sub-shaft', 'sub-seal'],
+                parts: 8, wo: 5, delay: 28, cost: '€1.2M',
+                cascade: [
+                    { text: 'Nickel Alloy IN718 supply disruption — sanctions impact', sev: 'critical', meta: 'MAT-NI718 • Supplier: Special Metals' },
+                    { text: 'Blade Set production halted — no raw material', sev: 'critical', meta: 'WO-7733 • Blocked indefinitely' },
+                    { text: 'HPC sub-assembly cascade failure', sev: 'critical', meta: 'WO-HPC-01 • Entire module blocked' },
+                    { text: 'Alternative alloy qualification started — 28d minimum', sev: 'high', meta: 'ENG-QUAL-718B • Engineering change' },
+                    { text: 'All Q2 deliveries at risk — escalation to VP Ops', sev: 'high', meta: 'Multiple SOs • Board-level visibility' },
+                    { text: 'Shaft and Seal assemblies at risk if delay exceeds 35d', sev: 'medium', meta: 'Shared supplier dependency' },
+                ],
+                deliveries: ['+28d', '+28d', '+14d', '+21d']
+            }
+        };
+
+        function init() {
+            renderBOM();
+        }
+
+        function renderBOM() {
+            const canvas = document.getElementById('bomCanvas');
+            canvas.innerHTML = '<div class="bom-tree" id="bomTree"></div>';
+            const tree = document.getElementById('bomTree');
+
+            bomData.forEach(item => {
+                const level = document.createElement('div');
+                level.className = 'bom-level';
+                level.dataset.depth = item.depth;
+
+                const conn = document.createElement('div');
+                conn.className = 'bom-connector';
+
+                const node = document.createElement('div');
+                node.className = 'bom-node' + (item.depth === 0 ? ' root' : '');
+                node.id = `bom-${item.id}`;
+                node.innerHTML = `
+                    <div class="bom-icon ${item.type}">${item.icon}</div>
+                    <div class="bom-info">
+                        <div class="bom-name">${item.name}</div>
+                        <div class="bom-meta">${item.pn}${item.children ? ' • has children' : ''}</div>
+                    </div>
+                    <span class="bom-tag blue" id="tag-${item.id}">OK</span>
+                `;
+
+                if (item.depth > 0) level.appendChild(conn);
+                level.appendChild(node);
+                tree.appendChild(level);
+            });
+        }
+
+        function selectPart(part) {
+            document.querySelectorAll('.ps-item').forEach(el => el.classList.remove('selected'));
+            document.getElementById(`ps-${part}`).classList.add('selected');
+            selectedPart = part;
+            if (shortageActive) resetBOM();
+        }
+
+        function simulateShortage() {
+            resetBOMVisual();
+            shortageActive = true;
+
+            const impact = impactMap[selectedPart];
+            const partNode = bomData.find(b => b.part === selectedPart);
+
+            // Mark the source fault
+            if (partNode) {
+                const el = document.getElementById(`bom-${partNode.id}`);
+                el.classList.add('source-fault');
+                const tag = document.getElementById(`tag-${partNode.id}`);
+                tag.className = 'bom-tag red';
+                tag.textContent = 'SHORTAGE';
+            }
+
+            // Animate cascade
+            let delay = 300;
+            impact.affected.forEach(id => {
+                setTimeout(() => {
+                    const el = document.getElementById(`bom-${id}`);
+                    if (el) {
+                        el.classList.add('impacted');
+                        const tag = document.getElementById(`tag-${id}`);
+                        tag.className = 'bom-tag red';
+                        tag.textContent = 'BLOCKED';
+                    }
+                }, delay);
+                delay += 250;
+            });
+
+            impact.atRisk.forEach(id => {
+                setTimeout(() => {
+                    const el = document.getElementById(`bom-${id}`);
+                    if (el) {
+                        el.classList.add('at-risk');
+                        const tag = document.getElementById(`tag-${id}`);
+                        tag.className = 'bom-tag amber';
+                        tag.textContent = 'AT RISK';
+                    }
+                }, delay);
+                delay += 250;
+            });
+
+            // Mark safe nodes
+            setTimeout(() => {
+                bomData.forEach(item => {
+                    const el = document.getElementById(`bom-${item.id}`);
+                    if (el && !el.classList.contains('impacted') && !el.classList.contains('at-risk') && !el.classList.contains('source-fault') && !el.classList.contains('root')) {
+                        el.classList.add('safe');
+                        const tag = document.getElementById(`tag-${item.id}`);
+                        if (tag.textContent === 'OK') {
+                            tag.className = 'bom-tag green';
+                            tag.textContent = 'SAFE';
+                        }
+                    }
+                });
+            }, delay);
+
+            // Update badge
+            document.getElementById('alertBadge').className = 'badge alert';
+            document.getElementById('alertBadge').textContent = `⚠ ${partNode ? partNode.name : ''} Shortage`;
+
+            // Update metrics
+            document.getElementById('imp-parts').textContent = impact.parts;
+            document.getElementById('imp-wo').textContent = impact.wo;
+            document.getElementById('imp-delay').textContent = impact.delay;
+            document.getElementById('imp-cost').textContent = impact.cost;
+
+            // Update deliveries
+            impact.deliveries.forEach((d, i) => {
+                const el = document.getElementById(`del-${i+1}`);
+                el.textContent = d;
+                el.className = `del-shift ${d === 'On Time' ? 'green' : 'red'}`;
+                const dot = document.getElementById(`del-${i+1}-dot`);
+                if (dot) dot.className = `del-indicator ${d === 'On Time' ? 'on-time' : 'delayed'}`;
+            });
+
+            showToast('💥', 'Shortage Simulated', `${partNode ? partNode.name : ''} marked as delayed`);
+        }
+
+        function traceImpact() {
+            if (!shortageActive) {
+                showToast('ℹ️', 'No Shortage', 'Simulate a shortage first');
+                return;
+            }
+
+            const impact = impactMap[selectedPart];
+            const list = document.getElementById('cascadeList');
+            list.innerHTML = '';
+            cascadeEntries = [];
+
+            let delay = 0;
+            impact.cascade.forEach((c, i) => {
+                setTimeout(() => {
+                    const el = document.createElement('div');
+                    el.className = `cascade-item ${c.sev}`;
+                    const icons = { critical: '🔴', high: '🟠', medium: '🟡', low: '🟢' };
+                    el.innerHTML = `
+                        <div class="cas-icon">${icons[c.sev]}</div>
+                        <div>
+                            <div class="cas-text">${c.text}</div>
+                            <div class="cas-meta">${c.meta}</div>
+                        </div>
+                    `;
+                    list.appendChild(el);
+                    cascadeEntries.push(el);
+                    document.getElementById('casCount').textContent = `${cascadeEntries.length} events`;
+                }, delay);
+                delay += 350;
+            });
+
+            showToast('🔗', 'Impact Traced', `${impact.cascade.length} cascade events identified`);
+        }
+
+        function resetBOMVisual() {
+            bomData.forEach(item => {
+                const el = document.getElementById(`bom-${item.id}`);
+                if (el) el.className = 'bom-node' + (item.depth === 0 ? ' root' : '');
+                const tag = document.getElementById(`tag-${item.id}`);
+                if (tag) { tag.className = 'bom-tag blue'; tag.textContent = 'OK'; }
+            });
+        }
+
+        function resetBOM() {
+            shortageActive = false;
+            cascadeEntries = [];
+            resetBOMVisual();
+
+            document.getElementById('alertBadge').className = 'badge';
+            document.getElementById('alertBadge').textContent = 'No Active Shortage';
+
+            ['imp-parts','imp-wo','imp-delay','imp-cost'].forEach(id => {
+                document.getElementById(id).textContent = '—';
+            });
+
+            document.getElementById('cascadeList').innerHTML = '<div style="color:var(--text3);font-size:0.78rem;text-align:center;padding:1.2rem;">Simulate a shortage to see cascade</div>';
+            document.getElementById('casCount').textContent = '0 events';
+
+            for (let i = 1; i <= 4; i++) {
+                document.getElementById(`del-${i}`).textContent = 'On Time';
+                document.getElementById(`del-${i}`).className = 'del-shift green';
+                const dot = document.getElementById(`del-${i}-dot`);
+                if (dot) dot.className = 'del-indicator on-time';
+            }
+
+            showToast('🔄', 'Reset', 'BOM cleared');
+        }
+
+        function showToast(icon, title, msg) {
+            const t = document.getElementById('toast');
+            document.getElementById('tIcon').textContent = icon;
+            document.getElementById('tTitle').textContent = title;
+            document.getElementById('tMsg').textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
+        }
+
+        init();
+    </script>
+</body>
+</html>
